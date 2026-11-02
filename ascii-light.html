@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASCII Light</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime&family=Cutive+Mono&family=Xanh+Mono&family=DM+Mono:wght@300;400&family=IBM+Plex+Mono:wght@200;300;400&family=JetBrains+Mono:wght@200;300;400&family=Roboto+Mono:wght@200;300;400&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e10; --panel: #17171a; --line: #2a2a2f; --text: #e8e6e1; --muted: #8b8a86; --accent: #f2d27a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, sans-serif; display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 15px; margin: 0; letter-spacing: .02em; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
+  label .row { display: flex; justify-content: space-between; }
+  label output { color: var(--text); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=text], select { background: var(--bg); border: 1px solid var(--line); color: var(--text); padding: 6px 8px; border-radius: 6px; font: 12px ui-monospace, monospace; }
+  .check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+  button { background: var(--text); color: var(--bg); border: 0; padding: 9px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  main { position: relative; display: grid; place-items: center; overflow: auto; padding: 24px; }
+  canvas { max-width: 100%; max-height: calc(100vh - 48px); display: none; }
+  #drop { border: 1.5px dashed var(--line); border-radius: 12px; padding: 48px 64px; text-align: center; color: var(--muted); }
+  #drop strong { color: var(--text); display: block; font-size: 15px; margin-bottom: 6px; }
+  main.over #drop, main.over canvas { outline: 2px solid var(--accent); outline-offset: 6px; }
+  body[data-mode=chars] .squares-only, body[data-mode=squares] .chars-only { display: none; }
+  @media (max-width: 760px) { body { grid-template-columns: 1fr; height: auto; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body data-mode="chars">
+<aside>
+  <h1>ASCII Light <span>· drop an image</span></h1>
+  <div class="btns">
+    <button id="pick">Open image</button>
+    <button id="save" class="ghost">Save PNG</button>
+  </div>
+  <input id="file" type="file" accept="image/*" hidden>
+
+  <label>Style
+    <select id="mode"><option value="chars">Characters</option><option value="squares">Squares</option></select>
+  </label>
+  <label><div class="row">Cell size <output id="o-size"></output></div><input id="size" type="range" min="5" max="28" value="11"></label>
+  <label><div class="row">Photo shows through above <output id="o-thresh"></output></div><input id="thresh" type="range" min="0" max="1" step=".01" value=".62"></label>
+  <label><div class="row">Through softness <output id="o-soft"></output></div><input id="soft" type="range" min=".01" max=".5" step=".01" value=".18"></label>
+  <label><div class="row">Background photo <output id="o-dim"></output></div><input id="dim" type="range" min="0" max="1" step=".01" value=".35"></label>
+  <label><div class="row">Character glow <output id="o-boost"></output></div><input id="boost" type="range" min=".5" max="2.5" step=".05" value="1.35"></label>
+  <label><div class="row">Contrast <output id="o-gamma"></output></div><input id="gamma" type="range" min=".4" max="2.5" step=".05" value="1"></label>
+  <label class="check"><input id="stretch" type="checkbox" checked> Auto contrast</label>
+  <label>Text blend
+    <select id="blend"><option value="screen" selected>Screen (glows over photo)</option><option value="source-over">Normal</option><option value="lighter">Add (brightest)</option></select>
+  </label>
+  <label><div class="row">Flicker <output id="o-flicker"></output></div><input id="flicker" type="range" min="0" max=".3" step=".01" value=".04"></label>
+  <label class="chars-only">Font
+    <select id="font">
+      <optgroup label="Serif">
+        <option selected>Courier New</option><option>Cutive Mono</option><option>Courier Prime</option><option>Xanh Mono</option>
+      </optgroup>
+      <optgroup label="Sans">
+      <option>Roboto Mono</option><option>IBM Plex Mono</option><option>JetBrains Mono</option><option>DM Mono</option><option>Space Mono</option><option value="ui-monospace">System mono</option>
+      </optgroup>
+    </select>
+  </label>
+  <label class="chars-only">Weight
+    <select id="weight"><option value="200">Thin</option><option value="300" selected>Light</option><option value="400">Regular</option></select>
+  </label>
+  <label class="chars-only"><div class="row">Letter spacing <output id="o-track"></output></div><input id="track" type="range" min=".5" max="1.2" step=".01" value=".78"></label>
+  <label class="chars-only"><div class="row">Line height <output id="o-lead"></output></div><input id="lead" type="range" min=".9" max="1.8" step=".01" value="1.2"></label>
+  <label class="chars-only">Character ramp (dark → bright)<input id="ramp" type="text" value="SS00088Xx+=-:. "></label>
+  <label class="check chars-only"><input id="invert" type="checkbox"> Reverse ramp</label>
+  <label class="squares-only"><div class="row">Gap between squares <output id="o-gap"></output></div><input id="gap" type="range" min="0" max=".7" step=".01" value=".35"></label>
+  <label class="squares-only"><div class="row">Density <output id="o-density"></output></div><input id="density" type="range" min=".2" max="2" step=".05" value="1"></label>
+  <label class="check squares-only"><input id="mono" type="checkbox" checked> Black and white</label>
+  <label>Max output width
+    <select id="maxw"><option>1280</option><option selected>1920</option><option>2560</option><option>3840</option></select>
+  </label>
+</aside>
+<main id="stage">
+  <div id="drop"><strong>Drop an image here</strong>or click "Open image" · paste works too</div>
+  <canvas id="out"></canvas>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const out = $('out'), ctx = out.getContext('2d');
+const grid = document.createElement('canvas'), gctx = grid.getContext('2d', { willReadFrequently: true });
+const mask = document.createElement('canvas'), mctx = mask.getContext('2d');
+const lit = document.createElement('canvas'), lctx = lit.getContext('2d');
+const FALLBACK = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const controls = ['size', 'thresh', 'soft', 'dim', 'boost', 'flicker', 'gap', 'density', 'track', 'lead', 'gamma'];
+let img = null, cells = null, raf = 0;
+
+const opts = () => Object.fromEntries([...controls, 'ramp', 'maxw', 'mode', 'font', 'weight', 'blend'].map(k => [k, $(k).value]).concat(['invert', 'mono', 'stretch'].map(k => [k, $(k).checked])));
+
+function load(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(file);
+  const i = new Image();
+  i.onload = () => { img = i; $('drop').style.display = 'none'; out.style.display = 'block'; analyse(); };
+  i.src = url;
+}
+
+// Sample the image once per settings change: average colour and luminance per character cell.
+function analyse() {
+  if (!img) return;
+  const o = opts();
+  const scale = Math.min(1, o.maxw / img.naturalWidth);
+  const W = out.width = lit.width = Math.round(img.naturalWidth * scale);
+  const H = out.height = lit.height = Math.round(img.naturalHeight * scale);
+  const fs = +o.size, squares = o.mode === 'squares';
+  const ch = squares ? fs : fs * o.lead, cw = squares ? fs : fs * o.track;
+  const cols = Math.ceil(W / cw), rows = Math.ceil(H / ch);
+
+  grid.width = mask.width = cols; grid.height = mask.height = rows;
+  gctx.imageSmoothingQuality = 'high';
+  gctx.drawImage(img, 0, 0, cols, rows);
+  const px = gctx.getImageData(0, 0, cols, rows).data;
+
+  // Luminance mask: bright cells let the real photo through.
+  const md = mctx.createImageData(cols, rows);
+  const t = +o.thresh, s = +o.soft;
+  // noise decides which squares light up; fixed per cell so the pattern holds still unless flickering.
+  cells = { cols, rows, cw, ch, fs, W, H, rgb: px, lum: new Float32Array(cols * rows), noise: Float32Array.from({ length: cols * rows }, Math.random) };
+  for (let i = 0; i < cols * rows; i++) {
+    const l = (0.299 * px[i*4] + 0.587 * px[i*4+1] + 0.114 * px[i*4+2]) / 255;
+    cells.lum[i] = l;
+    const a = Math.min(1, Math.max(0, (l - t) / s));
+    md.data[i*4+3] = 255 * a * a * (3 - 2 * a);
+  }
+  mctx.putImageData(md, 0, 0);
+
+  // Spread the brightness over the whole ramp; without this, mid-tone images collapse to one or two characters.
+  // Applied after the mask so "photo shows through" still follows real brightness.
+  // Equalize: each cell's level becomes its brightness rank, half-mixed with the original to keep some of the image's mood.
+  const n = cells.lum.length;
+  if (o.stretch) {
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => cells.lum[a] - cells.lum[b]);
+    const ranked = new Float32Array(n);
+    order.forEach((cell, rank) => ranked[cell] = rank / (n - 1));
+    for (let i = 0; i < n; i++) cells.lum[i] = .7 * ranked[i] + .3 * cells.lum[i];
+  }
+  const gamma = +o.gamma;
+  for (let i = 0; i < n; i++) cells.lum[i] = Math.pow(cells.lum[i], gamma);
+
+  // Photo cut to the bright regions (upscaled mask gives soft edges).
+  lctx.globalCompositeOperation = 'source-over';
+  lctx.clearRect(0, 0, W, H);
+  lctx.drawImage(img, 0, 0, W, H);
+  lctx.globalCompositeOperation = 'destination-in';
+  lctx.imageSmoothingEnabled = true;
+  lctx.drawImage(mask, 0, 0, W, H);
+
+  clearTimeout(raf);
+  frame();
+}
+
+function frame() {
+  const o = opts(), c = cells;
+  let ramp = [...(o.ramp || ' ')];
+  if (o.invert) ramp.reverse();
+  const boost = +o.boost, flick = +o.flicker;
+
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, c.W, c.H);
+  ctx.globalAlpha = +o.dim;
+  ctx.drawImage(img, 0, 0, c.W, c.H);
+  ctx.globalAlpha = 1;
+
+  ctx.globalCompositeOperation = o.blend;
+  if (o.mode === 'squares') drawSquares(o, c, boost, flick);
+  else drawChars(o, ramp, c, boost, flick);
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Real photo glows through the highlights; screen keeps the characters visible on top.
+  ctx.drawImage(lit, 0, 0);
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = 0.25;
+  ctx.drawImage(lit, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+
+  if (flick > 0) raf = setTimeout(frame, 90);
+}
+
+// Dither: a square lights up when the cell is brighter than its random threshold.
+function drawSquares(o, c, boost, flick) {
+  const inset = c.cw * +o.gap / 2, side = c.cw - inset * 2, density = +o.density;
+  for (let y = 0; y < c.rows; y++) for (let x = 0; x < c.cols; x++) {
+    const i = y * c.cols + x;
+    if (flick && Math.random() < flick) c.noise[i] = Math.random();
+    const l = c.lum[i];
+    if (l * density < c.noise[i]) continue;
+    let r = c.rgb[i*4], g = c.rgb[i*4+1], b = c.rgb[i*4+2];
+    if (o.mono) r = g = b = 90 + 165 * Math.min(1, l * boost);
+    else { r = Math.min(255, r * boost); g = Math.min(255, g * boost); b = Math.min(255, b * boost); }
+    ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+    ctx.fillRect(x * c.cw + inset, y * c.ch + inset, side, side);
+  }
+}
+
+function drawChars(o, ramp, c, boost, flick) {
+  ctx.font = `${o.weight} ${c.fs}px "${o.font}", ${FALLBACK}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let y = 0; y < c.rows; y++) for (let x = 0; x < c.cols; x++) {
+    const i = y * c.cols + x;
+    let k = Math.round(c.lum[i] * (ramp.length - 1));
+    if (flick && Math.random() < flick) k = Math.max(0, Math.min(ramp.length - 1, k + (Math.random() < .5 ? -1 : 1)));
+    const chr = ramp[k];
+    if (chr === ' ') continue;
+    const r = Math.min(255, c.rgb[i*4] * boost), g = Math.min(255, c.rgb[i*4+1] * boost), b = Math.min(255, c.rgb[i*4+2] * boost);
+    ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+    ctx.fillText(chr, (x + .5) * c.cw, (y + .5) * c.ch);
+  }
+}
+
+controls.forEach(k => {
+  const show = () => $('o-' + k).textContent = $(k).value;
+  show();
+  $(k).addEventListener('input', () => { show(); analyse(); });
+});
+['ramp', 'invert', 'maxw', 'mono', 'stretch', 'blend'].forEach(k => $(k).addEventListener('input', analyse));
+// Canvas text won't wait for a web font, so load the chosen face before redrawing.
+['font', 'weight'].forEach(k => $(k).addEventListener('input', () => {
+  document.fonts.load(`${$('weight').value} 16px "${$('font').value}"`).then(analyse, analyse);
+}));
+document.fonts.load(`${$('weight').value} 16px "${$('font').value}"`).then(analyse, analyse);
+$('mode').addEventListener('input', () => { document.body.dataset.mode = $('mode').value; analyse(); });
+
+$('pick').onclick = () => $('file').click();
+$('file').onchange = e => load(e.target.files[0]);
+$('save').onclick = () => {
+  if (!img) return;
+  const a = document.createElement('a');
+  a.download = 'ascii-light.png';
+  a.href = out.toDataURL('image/png');
+  a.click();
+};
+
+const stage = $('stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('over'); });
+stage.addEventListener('dragleave', () => stage.classList.remove('over'));
+stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('over'); load(e.dataTransfer.files[0]); });
+window.addEventListener('paste', e => load([...e.clipboardData.files][0]));
+</script>
+</body>
+</html>
