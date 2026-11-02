@@ -31,22 +31,23 @@ This look works best on a photo with one bright subject against darker surroundi
 
 ### Get the "data sky" look
 
-Use **Scatter** on a landscape with a bright sky. The style keeps the full photo and lays faint random letters over it. Letters get denser and brighter toward the light, and they fade out over dark ground.
+Use **Scatter** on a landscape with a bright sky. The style keeps the full photo and lays random letters over it. Near the light, letters are white and strong. Away from it, they take on the photo's color and fade out. Areas darker than **Letters start at brightness** get no letters.
 
-- To keep letters only in the sky, raise **Bright areas only**.
+- To clear letters from dark ground, raise **Letters start at brightness**.
+- To spread letters further into darker sky, lower **Letters start at brightness**.
 - To make letter brightness more uneven, raise **Randomness**.
 - To get the binary-code feel, set **Characters** to `01`.
 
 ## Controls
 
-The defaults below are for **Characters** mode. **Scatter** sets **Cell size** to 9, **Photo shows through above** to 1, and **Background photo** to 1.
+The defaults below are for **Characters** mode. **Scatter** sets **Cell size** to 13, **Photo shows through above** to 1, and **Background photo** to 1.
 
 ### Shared controls
 
 | Control | Default | What it does |
 | --- | --- | --- |
 | Style | Characters | Draws characters, dithered squares, or scattered letters. |
-| Cell size | 11 | Font size in Characters mode. Square size in Squares mode. |
+| Cell size | 11 | Font size in Characters mode. Width and height of each square cell in Squares and Scatter modes. |
 | Photo shows through above | 0.62 | Brightness above which the original photo replaces the effect. |
 | Through softness | 0.18 | Width of the fade between the effect and the photo. |
 | Background photo | 0.35 | Opacity of the photo behind the effect. |
@@ -63,13 +64,13 @@ The defaults below are for **Characters** mode. **Scatter** sets **Cell size** t
 | --- | --- | --- |
 | Font | Courier New | Monospace font. The menu groups serif and sans fonts. |
 | Weight | Light | Thin, Light, or Regular. Courier Prime, Cutive Mono, Space Mono, and Xanh Mono have one weight only. |
-| Letter spacing | 0.78 | Horizontal cell size as a multiple of the font size. |
-| Line height | 1.2 | Vertical cell size as a multiple of the font size. |
 
 ### Characters mode
 
 | Control | Default | What it does |
 | --- | --- | --- |
+| Letter spacing | 0.78 | Horizontal cell size as a multiple of the font size. |
+| Line height | 1.2 | Vertical cell size as a multiple of the font size. |
 | Character ramp | `SS00088Xx+=-:. ` | Characters from darkest cell to brightest cell. A space draws nothing. |
 | Reverse ramp | Off | Reverses the ramp order. |
 
@@ -86,9 +87,12 @@ The defaults below are for **Characters** mode. **Scatter** sets **Cell size** t
 | Control | Default | What it does |
 | --- | --- | --- |
 | Characters (picked at random) | `01Xx#@+*` | Each cell draws one of these characters, chosen at random. |
+| Letter size in cell | 0.7 | Font size as a share of the cell. Each letter sits centered in its own square cell, so lower values leave more space between letters. |
 | Amount | 0.85 | Overall letter opacity. |
 | Randomness | 0.75 | How much letter opacity varies from cell to cell. At 0, opacity follows brightness exactly. |
-| Bright areas only | 1.8 | Exponent on brightness. Higher values remove letters from darker areas. |
+| Letters start at brightness | 0.35 | Brightness below which no letters appear. Above it, opacity and whiteness rise to full at the brightest point. |
+| Lighten letters | 0.9 | How white the letters get at the brightest point. Letters near the cutoff keep the photo's color. |
+| Smooth light | 4 | Blur radius, in cells, on the brightness map. Higher values make letters follow the broad light instead of local detail. |
 
 ## How the effect works
 
@@ -96,6 +100,6 @@ The filter scales the image down so that each pixel stands for one cell. That pi
 
 - **Characters mode** picks a character from the ramp by brightness and colors it with the cell's color. Dark cells get dense characters like `S` and `0`. Bright cells get light ones like `+` and `:`.
 - **Squares mode** gives each cell a fixed random threshold and draws a square when the cell is brighter than that threshold. Bright areas fill in and dark areas thin out. This technique is called dithering.
-- **Scatter mode** picks a random character for each cell. The letter's opacity is the cell's brightness, raised to the **Bright areas only** exponent, then scaled by a random amount. Letter brightness looks random up close but still follows the image's light.
+- **Scatter mode** picks a random character for each cell. It blurs the brightness map, then measures how far each cell sits above **Letters start at brightness**. That value sets both the letter's opacity and how close its color is to white. A random amount then scales the opacity, with most letters faint and a few strong. Letter brightness looks random up close but still follows the image's light.
 
 A second pass builds a mask from the bright cells. The filter draws the original photo through that mask on top of the effect, so the brightest parts of the image stay photographic.

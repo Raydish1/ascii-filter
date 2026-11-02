@@ -57,7 +57,9 @@
   <label class="scatter-only">Characters (picked at random)<input id="charset" type="text" value="01Xx#@+*"></label>
   <label class="scatter-only"><div class="row">Amount <output id="o-amount"></output></div><input id="amount" type="range" min=".1" max="1.5" step=".05" value=".85"></label>
   <label class="scatter-only"><div class="row">Randomness <output id="o-jitter"></output></div><input id="jitter" type="range" min="0" max="1" step=".01" value=".75"></label>
-  <label class="scatter-only"><div class="row">Bright areas only <output id="o-falloff"></output></div><input id="falloff" type="range" min=".3" max="5" step=".1" value="1.8"></label>
+  <label class="scatter-only"><div class="row">Letters start at brightness <output id="o-cutoff"></output></div><input id="cutoff" type="range" min="0" max=".9" step=".01" value=".35"></label>
+  <label class="scatter-only"><div class="row">Lighten letters <output id="o-tint"></output></div><input id="tint" type="range" min="0" max="1" step=".01" value=".9"></label>
+  <label class="scatter-only"><div class="row">Smooth light <output id="o-smooth"></output></div><input id="smooth" type="range" min="0" max="12" step="1" value="4"></label>
   <label>Text blend
     <select id="blend"><option value="screen" selected>Screen (glows over photo)</option><option value="source-over">Normal</option><option value="lighter">Add (brightest)</option></select>
   </label>
@@ -75,8 +77,9 @@
   <label class="text-only">Weight
     <select id="weight"><option value="200">Thin</option><option value="300" selected>Light</option><option value="400">Regular</option></select>
   </label>
-  <label class="text-only"><div class="row">Letter spacing <output id="o-track"></output></div><input id="track" type="range" min=".5" max="1.2" step=".01" value=".78"></label>
-  <label class="text-only"><div class="row">Line height <output id="o-lead"></output></div><input id="lead" type="range" min=".9" max="1.8" step=".01" value="1.2"></label>
+  <label class="scatter-only"><div class="row">Letter size in cell <output id="o-fit"></output></div><input id="fit" type="range" min=".4" max="1" step=".01" value=".7"></label>
+  <label class="chars-only"><div class="row">Letter spacing <output id="o-track"></output></div><input id="track" type="range" min=".5" max="1.2" step=".01" value=".78"></label>
+  <label class="chars-only"><div class="row">Line height <output id="o-lead"></output></div><input id="lead" type="range" min=".9" max="1.8" step=".01" value="1.2"></label>
   <label class="chars-only">Character ramp (dark → bright)<input id="ramp" type="text" value="SS00088Xx+=-:. "></label>
   <label class="check chars-only"><input id="invert" type="checkbox"> Reverse ramp</label>
   <label class="squares-only"><div class="row">Gap between squares <output id="o-gap"></output></div><input id="gap" type="range" min="0" max=".7" step=".01" value=".35"></label>
@@ -98,12 +101,12 @@ const grid = document.createElement('canvas'), gctx = grid.getContext('2d', { wi
 const mask = document.createElement('canvas'), mctx = mask.getContext('2d');
 const lit = document.createElement('canvas'), lctx = lit.getContext('2d');
 const FALLBACK = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-const controls = ['size', 'thresh', 'soft', 'dim', 'boost', 'flicker', 'gap', 'density', 'track', 'lead', 'gamma', 'amount', 'jitter', 'falloff'];
+const controls = ['size', 'thresh', 'soft', 'dim', 'boost', 'flicker', 'gap', 'density', 'track', 'lead', 'gamma', 'amount', 'jitter', 'cutoff', 'tint', 'smooth', 'fit'];
 // Scatter lays letters over the untouched photo, so it needs the full photo and no cut-through.
 const PRESETS = {
   chars: { dim: .35, thresh: .62, size: 11 },
   squares: { dim: .35, thresh: .62, size: 11 },
-  scatter: { dim: 1, thresh: 1, size: 9 },
+  scatter: { dim: 1, thresh: 1, size: 13 },
 };
 let img = null, cells = null, raf = 0;
 
@@ -124,8 +127,10 @@ function analyse() {
   const scale = Math.min(1, o.maxw / img.naturalWidth);
   const W = out.width = lit.width = Math.round(img.naturalWidth * scale);
   const H = out.height = lit.height = Math.round(img.naturalHeight * scale);
-  const fs = +o.size, squares = o.mode === 'squares';
-  const ch = squares ? fs : fs * o.lead, cw = squares ? fs : fs * o.track;
+  // Squares and Scatter use square cells of `size`; Scatter sets each letter smaller inside its cell.
+  const size = +o.size, chars = o.mode === 'chars';
+  const ch = chars ? size * o.lead : size, cw = chars ? size * o.track : size;
+  const fs = o.mode === 'scatter' ? size * o.fit : size;
   const cols = Math.ceil(W / cw), rows = Math.ceil(H / ch);
 
   grid.width = mask.width = cols; grid.height = mask.height = rows;
@@ -161,6 +166,9 @@ function analyse() {
   const gamma = +o.gamma;
   for (let i = 0; i < n; i++) cells.lum[i] = Math.pow(cells.lum[i], gamma);
 
+  // Scatter follows the broad light, not cell-by-cell detail, so its opacity map is blurred.
+  cells.light = boxBlur(cells.raw, cols, rows, +o.smooth);
+
   // Photo cut to the bright regions (upscaled mask gives soft edges).
   lctx.globalCompositeOperation = 'source-over';
   lctx.clearRect(0, 0, W, H);
@@ -171,6 +179,24 @@ function analyse() {
 
   clearTimeout(raf);
   frame();
+}
+
+function boxBlur(src, w, h, r) {
+  if (r < 1) return src;
+  const pass = (from, dx, dy) => {
+    const to = new Float32Array(from.length);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let sum = 0, count = 0;
+      for (let k = -r; k <= r; k++) {
+        const xx = x + k * dx, yy = y + k * dy;
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        sum += from[yy * w + xx]; count++;
+      }
+      to[y * w + x] = sum / count;
+    }
+    return to;
+  };
+  return pass(pass(src, 1, 0), 0, 1);
 }
 
 function frame() {
@@ -225,16 +251,22 @@ function setFont(o, c) {
   ctx.textBaseline = 'middle';
 }
 
-// Random letters whose opacity follows brightness, scaled by a random amount per cell.
+// Random letters over the photo. `t` is how far the smoothed light sits above the cutoff:
+// it sets opacity, and it sets how white the letter is, so letters go white near the light
+// and melt into the photo's own color toward the cutoff. Below the cutoff nothing is drawn.
+// Squaring the noise makes most letters faint, so the few strong ones stand out.
 function drawScatter(o, c, boost, flick) {
-  const set = [...(o.charset || '0')], amount = +o.amount, jitter = +o.jitter, falloff = +o.falloff;
+  const set = [...(o.charset || '0')], amount = +o.amount, jitter = +o.jitter, cutoff = +o.cutoff, tint = +o.tint;
   setFont(o, c);
   for (let y = 0; y < c.rows; y++) for (let x = 0; x < c.cols; x++) {
     const i = y * c.cols + x;
     if (flick && Math.random() < flick) { c.noise[i] = Math.random(); c.pick[i] = Math.random(); }
-    const a = amount * Math.pow(c.raw[i], falloff) * (1 - jitter + jitter * c.noise[i]);
+    const t = Math.min(1, Math.max(0, (c.light[i] - cutoff) / (1 - cutoff)));
+    const a = amount * t * (1 - jitter + jitter * c.noise[i] ** 2);
     if (a < .02) continue;
-    const r = Math.min(255, c.rgb[i*4] * boost), g = Math.min(255, c.rgb[i*4+1] * boost), b = Math.min(255, c.rgb[i*4+2] * boost);
+    const w = tint * t;
+    const lift = v => Math.min(255, v * boost) * (1 - w) + 255 * w;
+    const r = lift(c.rgb[i*4]), g = lift(c.rgb[i*4+1]), b = lift(c.rgb[i*4+2]);
     ctx.globalAlpha = Math.min(1, a);
     ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
     ctx.fillText(set[Math.floor(c.pick[i] * set.length)], (x + .5) * c.cw, (y + .5) * c.ch);
@@ -267,6 +299,8 @@ controls.forEach(k => {
   document.fonts.load(`${$('weight').value} 16px "${$('font').value}"`).then(analyse, analyse);
 }));
 document.fonts.load(`${$('weight').value} 16px "${$('font').value}"`).then(analyse, analyse);
+// Browsers restore form values on reload, so match the sidebar to whatever style the menu came back with.
+document.body.dataset.mode = $('mode').value;
 $('mode').addEventListener('input', () => {
   const mode = $('mode').value;
   document.body.dataset.mode = mode;
