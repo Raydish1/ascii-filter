@@ -12,15 +12,19 @@
     --bg: #0e0e10; --panel: #17171a; --line: #2a2a2f; --text: #e8e6e1; --muted: #8b8a86; --accent: #f2d27a;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, sans-serif; display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
   aside { background: var(--panel); border-right: 1px solid var(--line); padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
   h1 { font-size: 15px; margin: 0; letter-spacing: .02em; }
   h1 span { color: var(--muted); font-weight: 400; }
+  h2 { font-size: 11px; margin: 8px 0 -4px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); font-weight: 600; }
   label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
   label .row { display: flex; justify-content: space-between; }
   label output { color: var(--text); font-variant-numeric: tabular-nums; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
   input[type=text], select { background: var(--bg); border: 1px solid var(--line); color: var(--text); padding: 6px 8px; border-radius: 6px; font: 12px ui-monospace, monospace; }
+  input[type=color] { width: 100%; height: 30px; padding: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
   button { background: var(--text); color: var(--bg); border: 0; padding: 9px 12px; border-radius: 6px; font-weight: 600; cursor: pointer; }
   button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
@@ -30,8 +34,11 @@
   #drop { border: 1.5px dashed var(--line); border-radius: 12px; padding: 48px 64px; text-align: center; color: var(--muted); }
   #drop strong { color: var(--text); display: block; font-size: 15px; margin-bottom: 6px; }
   main.over #drop, main.over canvas { outline: 2px solid var(--accent); outline-offset: 6px; }
-  body:not([data-mode=chars]) .chars-only, body:not([data-mode=squares]) .squares-only, body:not([data-mode=scatter]) .scatter-only,
-  body[data-mode=squares] .text-only, body[data-mode=scatter] .not-scatter { display: none; }
+  /* A control with data-modes shows only in the styles it lists. */
+  body[data-mode=chars] [data-modes]:not([data-modes~=chars]),
+  body[data-mode=mosaic] [data-modes]:not([data-modes~=mosaic]),
+  body[data-mode=squares] [data-modes]:not([data-modes~=squares]),
+  body[data-mode=scatter] [data-modes]:not([data-modes~=scatter]) { display: none; }
   @media (max-width: 760px) { body { grid-template-columns: 1fr; height: auto; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>
 </head>
@@ -45,26 +52,37 @@
   <input id="file" type="file" accept="image/*" hidden>
 
   <label>Style
-    <select id="mode"><option value="chars">Characters</option><option value="squares">Squares</option><option value="scatter">Scatter</option></select>
+    <select id="mode">
+      <option value="chars">Characters</option><option value="mosaic">Mosaic</option><option value="squares">Squares</option><option value="scatter">Scatter</option>
+    </select>
   </label>
   <label><div class="row">Cell size <output id="o-size"></output></div><input id="size" type="range" min="5" max="28" value="11"></label>
   <label><div class="row">Photo shows through above <output id="o-thresh"></output></div><input id="thresh" type="range" min="0" max="1" step=".01" value=".62"></label>
   <label><div class="row">Through softness <output id="o-soft"></output></div><input id="soft" type="range" min=".01" max=".5" step=".01" value=".18"></label>
   <label><div class="row">Background photo <output id="o-dim"></output></div><input id="dim" type="range" min="0" max="1" step=".01" value=".35"></label>
   <label><div class="row">Character glow <output id="o-boost"></output></div><input id="boost" type="range" min=".5" max="2.5" step=".05" value="1.35"></label>
-  <label class="not-scatter"><div class="row">Contrast <output id="o-gamma"></output></div><input id="gamma" type="range" min=".4" max="2.5" step=".05" value="1"></label>
-  <label class="check not-scatter"><input id="stretch" type="checkbox" checked> Auto contrast</label>
-  <label class="scatter-only">Characters (picked at random)<input id="charset" type="text" value="01Xx#@+*"></label>
-  <label class="scatter-only"><div class="row">Amount <output id="o-amount"></output></div><input id="amount" type="range" min=".1" max="1.5" step=".05" value=".85"></label>
-  <label class="scatter-only"><div class="row">Randomness <output id="o-jitter"></output></div><input id="jitter" type="range" min="0" max="1" step=".01" value=".75"></label>
-  <label class="scatter-only"><div class="row">Letters start at brightness <output id="o-cutoff"></output></div><input id="cutoff" type="range" min="0" max=".9" step=".01" value=".35"></label>
-  <label class="scatter-only"><div class="row">Lighten letters <output id="o-tint"></output></div><input id="tint" type="range" min="0" max="1" step=".01" value=".9"></label>
-  <label class="scatter-only"><div class="row">Smooth light <output id="o-smooth"></output></div><input id="smooth" type="range" min="0" max="12" step="1" value="4"></label>
+  <label data-modes="chars mosaic squares"><div class="row">Contrast <output id="o-gamma"></output></div><input id="gamma" type="range" min=".4" max="2.5" step=".05" value="1"></label>
+  <label class="check" data-modes="chars mosaic squares"><input id="stretch" type="checkbox" checked> Auto contrast</label>
   <label>Text blend
     <select id="blend"><option value="screen" selected>Screen (glows over photo)</option><option value="source-over">Normal</option><option value="lighter">Add (brightest)</option></select>
   </label>
-  <label><div class="row">Flicker <output id="o-flicker"></output></div><input id="flicker" type="range" min="0" max=".3" step=".01" value=".04"></label>
-  <label class="text-only">Font
+
+  <label data-modes="mosaic"><div class="row">Invert tiles above <output id="o-hot"></output></div><input id="hot" type="range" min=".5" max="1.01" step=".01" value=".86"></label>
+  <label data-modes="mosaic"><div class="row">Tile strength <output id="o-tiles"></output></div><input id="tiles" type="range" min="0" max="1.5" step=".05" value="1"></label>
+
+  <label data-modes="scatter">Characters (picked at random)<input id="charset" type="text" value="01Xx#@+*"></label>
+  <label data-modes="scatter"><div class="row">Amount <output id="o-amount"></output></div><input id="amount" type="range" min=".1" max="1.5" step=".05" value=".85"></label>
+  <label data-modes="scatter"><div class="row">Randomness <output id="o-jitter"></output></div><input id="jitter" type="range" min="0" max="1" step=".01" value=".75"></label>
+  <label data-modes="scatter"><div class="row">Letters start at brightness <output id="o-cutoff"></output></div><input id="cutoff" type="range" min="0" max=".9" step=".01" value=".35"></label>
+  <label data-modes="scatter"><div class="row">Lighten letters <output id="o-tint"></output></div><input id="tint" type="range" min="0" max="1" step=".01" value=".9"></label>
+  <label data-modes="scatter"><div class="row">Smooth light <output id="o-smooth"></output></div><input id="smooth" type="range" min="0" max="12" step="1" value="4"></label>
+
+  <label data-modes="squares"><div class="row">Gap between squares <output id="o-gap"></output></div><input id="gap" type="range" min="0" max=".7" step=".01" value=".35"></label>
+  <label data-modes="squares"><div class="row">Density <output id="o-density"></output></div><input id="density" type="range" min=".2" max="2" step=".05" value="1"></label>
+  <label class="check" data-modes="squares"><input id="mono" type="checkbox" checked> Black and white</label>
+
+  <h2 data-modes="chars mosaic scatter">Type</h2>
+  <label data-modes="chars mosaic scatter">Font
     <select id="font">
       <optgroup label="Serif">
         <option selected>Courier New</option><option>Cutive Mono</option><option>Courier Prime</option><option>Xanh Mono</option>
@@ -74,17 +92,32 @@
       </optgroup>
     </select>
   </label>
-  <label class="text-only">Weight
+  <label data-modes="chars mosaic scatter">Weight
     <select id="weight"><option value="200">Thin</option><option value="300" selected>Light</option><option value="400">Regular</option></select>
   </label>
-  <label class="scatter-only"><div class="row">Letter size in cell <output id="o-fit"></output></div><input id="fit" type="range" min=".4" max="1" step=".01" value=".7"></label>
-  <label class="chars-only"><div class="row">Letter spacing <output id="o-track"></output></div><input id="track" type="range" min=".5" max="1.2" step=".01" value=".78"></label>
-  <label class="chars-only"><div class="row">Line height <output id="o-lead"></output></div><input id="lead" type="range" min=".9" max="1.8" step=".01" value="1.2"></label>
-  <label class="chars-only">Character ramp (dark → bright)<input id="ramp" type="text" value="SS00088Xx+=-:. "></label>
-  <label class="check chars-only"><input id="invert" type="checkbox"> Reverse ramp</label>
-  <label class="squares-only"><div class="row">Gap between squares <output id="o-gap"></output></div><input id="gap" type="range" min="0" max=".7" step=".01" value=".35"></label>
-  <label class="squares-only"><div class="row">Density <output id="o-density"></output></div><input id="density" type="range" min=".2" max="2" step=".05" value="1"></label>
-  <label class="check squares-only"><input id="mono" type="checkbox" checked> Black and white</label>
+  <label data-modes="scatter"><div class="row">Letter size in cell <output id="o-fit"></output></div><input id="fit" type="range" min=".4" max="1" step=".01" value=".7"></label>
+  <label data-modes="chars mosaic"><div class="row">Letter spacing <output id="o-track"></output></div><input id="track" type="range" min=".5" max="1.2" step=".01" value=".78"></label>
+  <label data-modes="chars mosaic"><div class="row">Line height <output id="o-lead"></output></div><input id="lead" type="range" min=".9" max="1.8" step=".01" value="1.2"></label>
+  <label data-modes="chars mosaic">Character ramp (dark → bright)<input id="ramp" type="text" value="SS00088Xx+=-:. "></label>
+  <label class="check" data-modes="chars mosaic"><input id="invert" type="checkbox"> Reverse ramp</label>
+
+  <h2>Color</h2>
+  <label>Colors
+    <select id="colors"><option value="photo">From the photo</option><option value="duotone">Duotone</option></select>
+  </label>
+  <div class="pair" id="duo-colors" hidden>
+    <label>Dark<input id="colA" type="color" value="#7b5cff"></label>
+    <label>Bright<input id="colB" type="color" value="#5ce2f0"></label>
+  </div>
+  <label data-modes="chars mosaic scatter"><div class="row">Sparkles <output id="o-sparkle"></output></div><input id="sparkle" type="range" min="0" max=".05" step=".002" value="0"></label>
+
+  <h2>Motion</h2>
+  <label><div class="row">Shimmer (swaps per second) <output id="o-shimmer"></output></div><input id="shimmer" type="range" min="0" max="6" step=".1" value="0"></label>
+  <label><div class="row">Drifting snow <output id="o-snow"></output></div><input id="snow" type="range" min="0" max="1" step=".05" value="0"></label>
+
+  <h2>Background</h2>
+  <label class="check"><input id="grid" type="checkbox"> Cell grid lines</label>
+  <label><div class="row">Vignette <output id="o-vignette"></output></div><input id="vignette" type="range" min="0" max="1" step=".05" value="0"></label>
   <label>Max output width
     <select id="maxw"><option>1280</option><option selected>1920</option><option>2560</option><option>3840</option></select>
   </label>
@@ -99,18 +132,38 @@ const $ = id => document.getElementById(id);
 const out = $('out'), ctx = out.getContext('2d');
 const grid = document.createElement('canvas'), gctx = grid.getContext('2d', { willReadFrequently: true });
 const mask = document.createElement('canvas'), mctx = mask.getContext('2d');
+const photo = document.createElement('canvas'), pctx = photo.getContext('2d', { willReadFrequently: true });
 const lit = document.createElement('canvas'), lctx = lit.getContext('2d');
 const FALLBACK = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-const controls = ['size', 'thresh', 'soft', 'dim', 'boost', 'flicker', 'gap', 'density', 'track', 'lead', 'gamma', 'amount', 'jitter', 'cutoff', 'tint', 'smooth', 'fit'];
-// Scatter lays letters over the untouched photo, so it needs the full photo and no cut-through.
+const ACCENTS = ['#f9a8d4', '#fcd34d', '#86efac', '#c4b5fd'];
+const SNOW_GLYPHS = ['.', '.', '.', '-', '-', "'", ',', '·'];
+// Each style needs a different starting point; picking a style applies its preset.
+// Mosaic draws dark ink on its brightest tiles, which only shows with the Normal blend.
 const PRESETS = {
-  chars: { dim: .35, thresh: .62, size: 11 },
-  squares: { dim: .35, thresh: .62, size: 11 },
-  scatter: { dim: 1, thresh: 1, size: 13 },
+  chars: { dim: .35, thresh: .62, size: 11, track: .78, lead: 1.2, ramp: 'SS00088Xx+=-:. ', blend: 'screen', grid: false },
+  mosaic: { dim: .12, thresh: 1, size: 11, track: .9, lead: 1.36, ramp: " .':;ot%SX8@#", blend: 'source-over', grid: true },
+  squares: { dim: .35, thresh: .62, size: 11, blend: 'screen', grid: false },
+  scatter: { dim: 1, thresh: 1, size: 13, blend: 'screen', grid: false },
 };
-let img = null, cells = null, raf = 0;
+const inputs = [...document.querySelectorAll('aside input[id], aside select[id]')].filter(el => el.type !== 'file');
+let img = null, cells = null, snow = [], rafId = 0, lastDraw = 0;
 
-const opts = () => Object.fromEntries([...controls, 'ramp', 'charset', 'maxw', 'mode', 'font', 'weight', 'blend'].map(k => [k, $(k).value]).concat(['invert', 'mono', 'stretch'].map(k => [k, $(k).checked])));
+const opts = () => Object.fromEntries(inputs.map(el => [el.id, el.type === 'checkbox' ? el.checked : el.value]));
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// Integer hash to [0, 1). The same inputs always give the same value, so the pattern stays put between redraws.
+function hash(x, y, t) {
+  let h = Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(t, 83492791);
+  h = Math.imul(h ^ (h >>> 15), 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 3266489917);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+// Each cell swaps on its own clock: the offset staggers cells so swaps roll across the image instead of blinking together.
+function tick(x, y, time, rate) {
+  return Math.floor(time * rate + ((x * 7 + y * 13) & 15) / 16);
+}
 
 function load(file) {
   if (!file || !file.type.startsWith('image/')) return;
@@ -125,13 +178,25 @@ function analyse() {
   if (!img) return;
   const o = opts();
   const scale = Math.min(1, o.maxw / img.naturalWidth);
-  const W = out.width = lit.width = Math.round(img.naturalWidth * scale);
-  const H = out.height = lit.height = Math.round(img.naturalHeight * scale);
+  const W = out.width = lit.width = photo.width = Math.round(img.naturalWidth * scale);
+  const H = out.height = lit.height = photo.height = Math.round(img.naturalHeight * scale);
   // Squares and Scatter use square cells of `size`; Scatter sets each letter smaller inside its cell.
-  const size = +o.size, chars = o.mode === 'chars';
-  const ch = chars ? size * o.lead : size, cw = chars ? size * o.track : size;
+  const size = +o.size, text = o.mode === 'chars' || o.mode === 'mosaic';
+  const ch = text ? size * o.lead : size, cw = text ? size * o.track : size;
   const fs = o.mode === 'scatter' ? size * o.fit : size;
-  const cols = Math.ceil(W / cw), rows = Math.ceil(H / ch);
+  const cols = Math.ceil(W / cw), rows = Math.ceil(H / ch), n = cols * rows;
+  const duo = o.colors === 'duotone', A = hex(o.colA), B = hex(o.colB);
+
+  // The photo itself, recoloured when duotone is on so the background matches the characters.
+  pctx.drawImage(img, 0, 0, W, H);
+  if (duo) {
+    const p = pctx.getImageData(0, 0, W, H), d = p.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const l = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]) / 255, k = Math.min(1, l * 1.2);
+      for (let j = 0; j < 3; j++) d[i+j] = lerp(A[j], B[j], l) * k;
+    }
+    pctx.putImageData(p, 0, 0);
+  }
 
   grid.width = mask.width = cols; grid.height = mask.height = rows;
   gctx.imageSmoothingQuality = 'high';
@@ -140,14 +205,13 @@ function analyse() {
 
   // Luminance mask: bright cells let the real photo through.
   const md = mctx.createImageData(cols, rows);
-  const t = +o.thresh, s = +o.soft;
-  // noise decides which squares light up; fixed per cell so the pattern holds still unless flickering.
-  // pick chooses each scatter letter; raw keeps true brightness, which scatter uses instead of the equalized lum.
-  const random = () => Float32Array.from({ length: cols * rows }, Math.random);
-  cells = { cols, rows, cw, ch, fs, W, H, rgb: px, lum: new Float32Array(cols * rows), raw: new Float32Array(cols * rows), noise: random(), pick: random() };
-  for (let i = 0; i < cols * rows; i++) {
+  const t = +o.thresh, s = +o.soft, boost = +o.boost;
+  // raw keeps true brightness (Scatter, duotone); lum is equalized for picking characters.
+  cells = { o, cols, rows, cw, ch, fs, W, H, lum: new Float32Array(n), raw: new Float32Array(n), color: new Uint8ClampedArray(n * 3) };
+  for (let i = 0; i < n; i++) {
     const l = (0.299 * px[i*4] + 0.587 * px[i*4+1] + 0.114 * px[i*4+2]) / 255;
     cells.lum[i] = cells.raw[i] = l;
+    for (let j = 0; j < 3; j++) cells.color[i*3+j] = (duo ? lerp(A[j], B[j], l) : px[i*4+j]) * boost;
     const a = Math.min(1, Math.max(0, (l - t) / s));
     md.data[i*4+3] = 255 * a * a * (3 - 2 * a);
   }
@@ -156,7 +220,6 @@ function analyse() {
   // Spread the brightness over the whole ramp; without this, mid-tone images collapse to one or two characters.
   // Applied after the mask so "photo shows through" still follows real brightness.
   // Equalize: each cell's level becomes its brightness rank, half-mixed with the original to keep some of the image's mood.
-  const n = cells.lum.length;
   if (o.stretch) {
     const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => cells.lum[a] - cells.lum[b]);
     const ranked = new Float32Array(n);
@@ -172,13 +235,17 @@ function analyse() {
   // Photo cut to the bright regions (upscaled mask gives soft edges).
   lctx.globalCompositeOperation = 'source-over';
   lctx.clearRect(0, 0, W, H);
-  lctx.drawImage(img, 0, 0, W, H);
+  lctx.drawImage(photo, 0, 0);
   lctx.globalCompositeOperation = 'destination-in';
   lctx.imageSmoothingEnabled = true;
   lctx.drawImage(mask, 0, 0, W, H);
 
-  clearTimeout(raf);
-  frame();
+  seedSnow(+o.snow);
+  const now = performance.now();
+  lastDraw = now;
+  frame(now, 0);
+  cancelAnimationFrame(rafId);
+  rafId = +o.shimmer > 0 || snow.length ? requestAnimationFrame(loop) : 0;
 }
 
 function boxBlur(src, w, h, r) {
@@ -199,23 +266,41 @@ function boxBlur(src, w, h, r) {
   return pass(pass(src, 1, 0), 0, 1);
 }
 
-function frame() {
-  const o = opts(), c = cells;
+function seedSnow(amount) {
+  const c = cells;
+  snow = Array.from({ length: Math.round(c.cols * c.rows / 60 * amount) }, () => ({
+    x: Math.random() * c.W, y: Math.random() * c.H, vx: (Math.random() - .5) * 3, vy: 3 + Math.random() * 8,
+    seed: Math.random() * 6.28, g: SNOW_GLYPHS[(Math.random() * SNOW_GLYPHS.length) | 0], a: .14 + Math.random() * .3,
+  }));
+}
+
+// Redraw at most 30 times a second while anything moves. requestAnimationFrame also pauses in hidden tabs.
+function loop(now) {
+  rafId = requestAnimationFrame(loop);
+  if (now - lastDraw < 33) return;
+  frame(now, Math.min(.1, (now - lastDraw) / 1000));
+  lastDraw = now;
+}
+
+function frame(now, dt) {
+  const c = cells, o = c.o, time = now / 1000, rate = +o.shimmer;
   let ramp = [...(o.ramp || ' ')];
   if (o.invert) ramp.reverse();
-  const boost = +o.boost, flick = +o.flicker;
 
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, c.W, c.H);
   ctx.globalAlpha = +o.dim;
-  ctx.drawImage(img, 0, 0, c.W, c.H);
+  ctx.drawImage(photo, 0, 0);
   ctx.globalAlpha = 1;
+  if (o.grid) drawGrid(c);
+  drawSnow(o, c, time, dt);
 
   ctx.globalCompositeOperation = o.blend;
-  if (o.mode === 'squares') drawSquares(o, c, boost, flick);
-  else if (o.mode === 'scatter') drawScatter(o, c, boost, flick);
-  else drawChars(o, ramp, c, boost, flick);
+  if (o.mode === 'squares') drawSquares(o, c, time, rate);
+  else if (o.mode === 'scatter') drawScatter(o, c, time, rate);
+  else if (o.mode === 'mosaic') drawMosaic(o, ramp, c, time, rate);
+  else drawChars(o, ramp, c, time, rate);
   ctx.globalCompositeOperation = 'source-over';
 
   // Real photo glows through the highlights; screen keeps the characters visible on top.
@@ -226,23 +311,36 @@ function frame() {
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
 
-  if (flick > 0) raf = setTimeout(frame, 90);
+  if (+o.vignette > 0) drawVignette(c, +o.vignette);
 }
 
-// Dither: a square lights up when the cell is brighter than its random threshold.
-function drawSquares(o, c, boost, flick) {
-  const inset = c.cw * +o.gap / 2, side = c.cw - inset * 2, density = +o.density;
-  for (let y = 0; y < c.rows; y++) for (let x = 0; x < c.cols; x++) {
-    const i = y * c.cols + x;
-    if (flick && Math.random() < flick) c.noise[i] = Math.random();
-    const l = c.lum[i];
-    if (l * density < c.noise[i]) continue;
-    let r = c.rgb[i*4], g = c.rgb[i*4+1], b = c.rgb[i*4+2];
-    if (o.mono) r = g = b = 90 + 165 * Math.min(1, l * boost);
-    else { r = Math.min(255, r * boost); g = Math.min(255, g * boost); b = Math.min(255, b * boost); }
-    ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
-    ctx.fillRect(x * c.cw + inset, y * c.ch + inset, side, side);
+function drawGrid(c) {
+  ctx.fillStyle = 'rgba(255,255,255,.035)';
+  for (let x = 0; x < c.W; x += c.cw) ctx.fillRect(Math.round(x), 0, 1, c.H);
+  for (let y = 0; y < c.H; y += c.ch) ctx.fillRect(0, Math.round(y), c.W, 1);
+}
+
+// Dim specks falling slowly behind the effect, snapped to the character grid.
+function drawSnow(o, c, time, dt) {
+  if (!snow.length) return;
+  setFont(o, c);
+  for (const s of snow) {
+    s.y += s.vy * dt;
+    s.x += (s.vx + Math.sin(time * .3 + s.seed) * 2) * dt;
+    if (s.y > c.H + c.ch) { s.y = -c.ch; s.x = Math.random() * c.W; }
+    if (s.x < 0) s.x += c.W; else if (s.x > c.W) s.x -= c.W;
+    ctx.fillStyle = `rgba(170,188,215,${s.a})`;
+    ctx.fillText(s.g, (Math.floor(s.x / c.cw) + .5) * c.cw, (Math.floor(s.y / c.ch) + .5) * c.ch);
   }
+}
+
+function drawVignette(c, v) {
+  const r = Math.hypot(c.W, c.H) / 2;
+  const g = ctx.createRadialGradient(c.W / 2, c.H / 2, r * .45, c.W / 2, c.H / 2, r);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, `rgba(0,0,0,${v})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, c.W, c.H);
 }
 
 function setFont(o, c) {
@@ -251,62 +349,110 @@ function setFont(o, c) {
   ctx.textBaseline = 'middle';
 }
 
+const rgb = (c, i, a = 1) => `rgba(${c.color[i*3]},${c.color[i*3+1]},${c.color[i*3+2]},${a})`;
+
+// Each brightness level has two characters: its own and the next lighter one. The hash picks between them,
+// so shimmer swaps characters without changing how bright the area reads.
+function glyphFor(ramp, l, x, y, t) {
+  const k = Math.round(l * (ramp.length - 1));
+  return hash(x, y, t) < .55 ? ramp[k] : ramp[Math.max(0, k - 1)];
+}
+
+// A rare mid-brightness cell takes an accent colour for one shimmer tick.
+function sparkleFor(o, l, x, y, t) {
+  const h = hash(y + 7919, x, t);
+  return l > .33 && l < .83 && h > 1 - o.sparkle ? ACCENTS[(h * 1e4 | 0) & 3] : null;
+}
+
+// Dither: a square lights up when the cell is brighter than its hashed threshold.
+function drawSquares(o, c, time, rate) {
+  const inset = c.cw * +o.gap / 2, side = c.cw - inset * 2, density = +o.density;
+  for (let y = 0; y < c.rows; y++) for (let x = 0; x < c.cols; x++) {
+    const i = y * c.cols + x, l = c.lum[i];
+    if (l * density < hash(x, y, tick(x, y, time, rate))) continue;
+    if (o.mono) { const v = 90 + 165 * Math.min(1, l * o.boost) | 0; ctx.fillStyle = `rgb(${v},${v},${v})`; }
+    else ctx.fillStyle = rgb(c, i);
+    ctx.fillRect(x * c.cw + inset, y * c.ch + inset, side, side);
+  }
+}
+
 // Random letters over the photo. `t` is how far the smoothed light sits above the cutoff:
 // it sets opacity, and it sets how white the letter is, so letters go white near the light
 // and melt into the photo's own color toward the cutoff. Below the cutoff nothing is drawn.
 // Squaring the noise makes most letters faint, so the few strong ones stand out.
-function drawScatter(o, c, boost, flick) {
+function drawScatter(o, c, time, rate) {
   const set = [...(o.charset || '0')], amount = +o.amount, jitter = +o.jitter, cutoff = +o.cutoff, tint = +o.tint;
   setFont(o, c);
   for (let y = 0; y < c.rows; y++) for (let x = 0; x < c.cols; x++) {
-    const i = y * c.cols + x;
-    if (flick && Math.random() < flick) { c.noise[i] = Math.random(); c.pick[i] = Math.random(); }
+    const i = y * c.cols + x, tk = tick(x, y, time, rate);
     const t = Math.min(1, Math.max(0, (c.light[i] - cutoff) / (1 - cutoff)));
-    const a = amount * t * (1 - jitter + jitter * c.noise[i] ** 2);
+    const a = amount * t * (1 - jitter + jitter * hash(x, y, tk) ** 2);
     if (a < .02) continue;
-    const w = tint * t;
-    const lift = v => Math.min(255, v * boost) * (1 - w) + 255 * w;
-    const r = lift(c.rgb[i*4]), g = lift(c.rgb[i*4+1]), b = lift(c.rgb[i*4+2]);
+    const w = tint * t, lift = v => v * (1 - w) + 255 * w;
+    const accent = sparkleFor(o, t, x, y, tk);
     ctx.globalAlpha = Math.min(1, a);
-    ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
-    ctx.fillText(set[Math.floor(c.pick[i] * set.length)], (x + .5) * c.cw, (y + .5) * c.ch);
+    ctx.fillStyle = accent || `rgb(${lift(c.color[i*3])|0},${lift(c.color[i*3+1])|0},${lift(c.color[i*3+2])|0})`;
+    ctx.fillText(set[Math.floor(hash(x + 104729, y, tk) * set.length)], (x + .5) * c.cw, (y + .5) * c.ch);
   }
   ctx.globalAlpha = 1;
 }
 
-function drawChars(o, ramp, c, boost, flick) {
+function drawChars(o, ramp, c, time, rate) {
   setFont(o, c);
   for (let y = 0; y < c.rows; y++) for (let x = 0; x < c.cols; x++) {
-    const i = y * c.cols + x;
-    let k = Math.round(c.lum[i] * (ramp.length - 1));
-    if (flick && Math.random() < flick) k = Math.max(0, Math.min(ramp.length - 1, k + (Math.random() < .5 ? -1 : 1)));
-    const chr = ramp[k];
+    const i = y * c.cols + x, l = c.lum[i], tk = tick(x, y, time, rate);
+    const chr = glyphFor(ramp, l, x, y, tk);
     if (chr === ' ') continue;
-    const r = Math.min(255, c.rgb[i*4] * boost), g = Math.min(255, c.rgb[i*4+1] * boost), b = Math.min(255, c.rgb[i*4+2] * boost);
-    ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+    ctx.fillStyle = sparkleFor(o, l, x, y, tk) || rgb(c, i);
     ctx.fillText(chr, (x + .5) * c.cw, (y + .5) * c.ch);
   }
 }
 
-controls.forEach(k => {
-  const show = () => $('o-' + k).textContent = $(k).value;
-  show();
-  $(k).addEventListener('input', () => { show(); analyse(); });
-});
-['ramp', 'charset', 'invert', 'maxw', 'mono', 'stretch', 'blend'].forEach(k => $(k).addEventListener('input', analyse));
+// Every lit cell is a tinted tile with a character on it. Tiles above the "invert" level flip:
+// a light tile with dark ink, so highlights read as solid blocks.
+function drawMosaic(o, ramp, c, time, rate) {
+  const hot = +o.hot, tiles = +o.tiles;
+  setFont(o, c);
+  for (let y = 0; y < c.rows; y++) for (let x = 0; x < c.cols; x++) {
+    const i = y * c.cols + x, l = c.lum[i], tk = tick(x, y, time, rate);
+    if (l < .055) continue;
+    const r = c.color[i*3], g = c.color[i*3+1], b = c.color[i*3+2], px = x * c.cw, py = y * c.ch;
+    const inverted = l >= hot;
+    if (inverted) ctx.fillStyle = `rgba(${lerp(r, 236, .6)|0},${lerp(g, 236, .6)|0},${lerp(b, 236, .6)|0},.9)`;
+    else ctx.fillStyle = `rgba(${r * .58|0},${g * .58|0},${b * .58|0},${Math.min(1, (.1 + l * .5) * tiles)})`;
+    ctx.fillRect(px + 1, py + 1, c.cw - 2, c.ch - 2);
+    const chr = glyphFor(ramp, l, x, y, tk);
+    if (chr === ' ') continue;
+    const w = Math.min(.94, .12 + l * .5);
+    ctx.fillStyle = inverted ? '#060a10'
+      : sparkleFor(o, l, x, y, tk) || `rgba(${lerp(r, 246, w)|0},${lerp(g, 246, w)|0},${lerp(b, 246, w)|0},${.4 + l * .6})`;
+    ctx.fillText(chr, px + c.cw / 2, py + c.ch / 2);
+  }
+}
+
+function syncSidebar() {
+  document.body.dataset.mode = $('mode').value;
+  $('duo-colors').hidden = $('colors').value !== 'duotone';
+  inputs.forEach(el => { const label = $('o-' + el.id); if (label) label.textContent = el.value; });
+}
+
+function applyPreset(mode) {
+  for (const [k, v] of Object.entries(PRESETS[mode])) {
+    if (typeof v === 'boolean') $(k).checked = v; else $(k).value = v;
+  }
+}
+
 // Canvas text won't wait for a web font, so load the chosen face before redrawing.
-['font', 'weight'].forEach(k => $(k).addEventListener('input', () => {
-  document.fonts.load(`${$('weight').value} 16px "${$('font').value}"`).then(analyse, analyse);
-}));
-document.fonts.load(`${$('weight').value} 16px "${$('font').value}"`).then(analyse, analyse);
-// Browsers restore form values on reload, so match the sidebar to whatever style the menu came back with.
-document.body.dataset.mode = $('mode').value;
-$('mode').addEventListener('input', () => {
-  const mode = $('mode').value;
-  document.body.dataset.mode = mode;
-  for (const [k, v] of Object.entries(PRESETS[mode])) { $(k).value = v; $('o-' + k).textContent = v; }
-  analyse();
+const loadFont = () => document.fonts.load(`${$('weight').value} 16px "${$('font').value}"`).then(analyse, analyse);
+
+document.querySelector('aside').addEventListener('input', e => {
+  if (e.target.id === 'mode') applyPreset(e.target.value);
+  syncSidebar();
+  if (e.target.id === 'font' || e.target.id === 'weight') loadFont(); else analyse();
 });
+// Browsers restore form values on reload, so match the sidebar to whatever the inputs came back with.
+syncSidebar();
+loadFont();
 
 $('pick').onclick = () => $('file').click();
 $('file').onchange = e => load(e.target.files[0]);
