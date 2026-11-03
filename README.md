@@ -2,6 +2,8 @@
 
 ASCII Filter turns a photo into colored ASCII characters, a mosaic of lettered tiles, dithered squares, or a scatter of random letters on top of the original image. Bright areas let the photo show through, so the subject looks lit while the rest of the frame turns into text.
 
+The page also has a **Jellyfish** tab: an animated swarm of ASCII jellyfish on a white background that you can push around with the pointer.
+
 The whole tool is one file, `ascii-light.html`. It runs in the browser, has no build step, and never uploads your images.
 
 ## Run it
@@ -45,6 +47,30 @@ Use **Mosaic** on an image with a few bright shapes on a dark background, such a
 - To get more solid blocks, lower **Invert tiles above**.
 - For a consistent color scheme across a set of images, set **Colors** to **Duotone** and pick two colors.
 - To make the image feel alive, set **Shimmer** to about 1.4 and **Sparkles** to about 0.014.
+
+## Watch the jellyfish
+
+1. Click the **Jellyfish** tab at the top of the sidebar.
+2. Move the pointer over the jellyfish to push them away.
+3. Click anywhere to send a pulse. The jellyfish speed up and two ripples spread from the click.
+4. To save the current frame, click **Save PNG**. To stop the animation, click **Pause**.
+
+If your system has reduced motion turned on, the animation starts paused. The animation also stops while you are on the **Filter** tab. If you drop an image while you are on the **Jellyfish** tab, the page switches to **Filter** and loads it.
+
+| Control | Default | What it does |
+| --- | --- | --- |
+| Jellyfish | 5 | Number of jellyfish, from 1 to 9. |
+| Size | 1 | Multiplier on the size of every jellyfish. |
+| Swim speed | 1 | Multiplier on how fast the bells pulse, which also sets how fast the jellyfish swim. |
+| Cell size | 10 | Cell width in pixels. Each cell is 1.5 times as tall as it is wide. |
+| Color A, Color B | `#0891b2`, `#7c3aed` | Each jellyfish gets its own blend of the two colors. |
+| Background | `#ffffff` | Page color behind the jellyfish. The tile and ink colors are designed for a light background. |
+| Sparkles | 0.014 | Share of mid-brightness cells that take an accent color. |
+| Shimmer (swaps per second) | 1.4 | How often each cell swaps its character. |
+| Drifting snow | 0.5 | Number of gray specks that fall slowly behind the jellyfish. |
+| Cell grid lines | On | Draws faint lines along the cell edges. |
+
+The jellyfish use JetBrains Mono, loaded from Google Fonts.
 
 ## Controls
 
@@ -151,4 +177,12 @@ A second pass builds a mask from the bright cells. The filter draws the original
 
 Every random choice comes from a hash of the cell's column, row, and a time step. The time step changes only when **Shimmer** is above 0, so a still image keeps the same pattern while you adjust other sliders. With **Shimmer** on, each cell steps on its own staggered clock, and characters swap only between a level's character and the next lighter one, so areas keep their brightness while they move.
 
-The Mosaic tiles, the two-character shimmer, the sparkles, the snow, and the grid lines are inspired by the ASCII jellyfish background in HorizonX's Kurage Dashboard template.
+### How the jellyfish work
+
+Each frame has three steps:
+
+1. **Simulate.** Each bell pulses with a quick squeeze and a slow relax. Only the squeeze pushes it forward, and drag slows it down between pulses. Each tentacle is a chain of points. Every point keeps its momentum, trails behind the bell, and sways, then gets pulled back to a fixed distance from the point before it.
+2. **Draw light into a small hidden canvas.** The canvas has 2 × 2 pixels per cell. Bells, tentacles, and ripples are drawn with additive blending, so overlaps get brighter. The color channels store meaning, not color: red is the amount of color A, blue is the amount of color B, and green marks the hot core.
+3. **Turn the light into tiles.** Each cell averages its 4 pixels. Brightness picks a character from `.':;ot%SX8@#` and sets how strong the tile is. The red-to-blue balance picks the hue. On the white background, brighter cells get deeper color and darker ink, and the hottest cells become dark tiles with white characters.
+
+The Jellyfish tab, the Mosaic tiles, the two-character shimmer, the sparkles, the snow, and the grid lines are inspired by the ASCII jellyfish background in HorizonX's Kurage Dashboard template. The Jellyfish tab is rewritten for a light background.

@@ -17,6 +17,14 @@
   aside { background: var(--panel); border-right: 1px solid var(--line); padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
   h1 { font-size: 15px; margin: 0; letter-spacing: .02em; }
   h1 span { color: var(--muted); font-weight: 400; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+  .tabs button { background: transparent; color: var(--muted); padding: 7px 10px; font-weight: 500; }
+  .tabs button[aria-selected=true] { background: var(--line); color: var(--text); }
+  .panel { display: flex; flex-direction: column; gap: 14px; }
+  main[data-tab=jelly] > #drop, main[data-tab=jelly] > #out { display: none !important; }
+  main:not([data-tab=jelly]) > #jelly-view { display: none; }
+  #jelly-view { position: absolute; inset: 0; }
+  #jelly { display: block; width: 100%; height: 100%; max-width: none; max-height: none; cursor: crosshair; }
   h2 { font-size: 11px; margin: 8px 0 -4px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); font-weight: 600; }
   label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
   label .row { display: flex; justify-content: space-between; }
@@ -44,7 +52,12 @@
 </head>
 <body data-mode="chars">
 <aside>
-  <h1>ASCII Light <span>· drop an image</span></h1>
+  <h1>ASCII Light</h1>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-filter" aria-selected="true" aria-controls="panel-filter">Filter</button>
+    <button type="button" role="tab" id="tab-jelly" aria-selected="false" aria-controls="panel-jelly">Jellyfish</button>
+  </div>
+  <div class="panel" id="panel-filter" role="tabpanel">
   <div class="btns">
     <button id="pick">Open image</button>
     <button id="save" class="ghost">Save PNG</button>
@@ -121,10 +134,35 @@
   <label>Max output width
     <select id="maxw"><option>1280</option><option selected>1920</option><option>2560</option><option>3840</option></select>
   </label>
+  </div>
+
+  <div class="panel" id="panel-jelly" role="tabpanel" hidden>
+    <div class="btns">
+      <button id="j-play" type="button">Pause</button>
+      <button id="j-save" type="button" class="ghost">Save PNG</button>
+    </div>
+    <label><div class="row">Jellyfish <output id="o-j-count"></output></div><input id="j-count" type="range" min="1" max="9" step="1" value="5"></label>
+    <label><div class="row">Size <output id="o-j-size"></output></div><input id="j-size" type="range" min=".5" max="1.8" step=".05" value="1"></label>
+    <label><div class="row">Swim speed <output id="o-j-speed"></output></div><input id="j-speed" type="range" min=".3" max="2.5" step=".05" value="1"></label>
+    <label><div class="row">Cell size <output id="o-j-cell"></output></div><input id="j-cell" type="range" min="6" max="16" step="1" value="10"></label>
+    <h2>Color</h2>
+    <div class="pair">
+      <label>Color A<input id="j-colA" type="color" value="#0891b2"></label>
+      <label>Color B<input id="j-colB" type="color" value="#7c3aed"></label>
+    </div>
+    <label>Background<input id="j-bg" type="color" value="#ffffff"></label>
+    <label><div class="row">Sparkles <output id="o-j-sparkle"></output></div><input id="j-sparkle" type="range" min="0" max=".05" step=".002" value=".014"></label>
+    <h2>Motion</h2>
+    <label><div class="row">Shimmer (swaps per second) <output id="o-j-shimmer"></output></div><input id="j-shimmer" type="range" min="0" max="6" step=".1" value="1.4"></label>
+    <label><div class="row">Drifting snow <output id="o-j-snow"></output></div><input id="j-snow" type="range" min="0" max="1" step=".05" value=".5"></label>
+    <label class="check"><input id="j-grid" type="checkbox" checked> Cell grid lines</label>
+    <p style="margin:0;color:var(--muted)">Move the pointer to push the jellyfish. Click to send a pulse.</p>
+  </div>
 </aside>
 <main id="stage">
   <div id="drop"><strong>Drop an image here</strong>or click "Open image" · paste works too</div>
   <canvas id="out"></canvas>
+  <div id="jelly-view"><canvas id="jelly" aria-label="Animated ASCII jellyfish"></canvas></div>
 </main>
 
 <script>
@@ -145,7 +183,7 @@ const PRESETS = {
   squares: { dim: .35, thresh: .62, size: 11, blend: 'screen', grid: false },
   scatter: { dim: 1, thresh: 1, size: 13, blend: 'screen', grid: false },
 };
-const inputs = [...document.querySelectorAll('aside input[id], aside select[id]')].filter(el => el.type !== 'file');
+const inputs = [...document.querySelectorAll('#panel-filter input[id], #panel-filter select[id]')].filter(el => el.type !== 'file');
 let img = null, cells = null, snow = [], rafId = 0, lastDraw = 0;
 
 const opts = () => Object.fromEntries(inputs.map(el => [el.id, el.type === 'checkbox' ? el.checked : el.value]));
@@ -169,7 +207,10 @@ function load(file) {
   if (!file || !file.type.startsWith('image/')) return;
   const url = URL.createObjectURL(file);
   const i = new Image();
-  i.onload = () => { img = i; $('drop').style.display = 'none'; out.style.display = 'block'; analyse(); };
+  i.onload = () => {
+    if (stage.dataset.tab === 'jelly') showTab('filter');
+    img = i; $('drop').style.display = 'none'; out.style.display = 'block'; analyse();
+  };
   i.src = url;
 }
 
@@ -445,7 +486,7 @@ function applyPreset(mode) {
 // Canvas text won't wait for a web font, so load the chosen face before redrawing.
 const loadFont = () => document.fonts.load(`${$('weight').value} 16px "${$('font').value}"`).then(analyse, analyse);
 
-document.querySelector('aside').addEventListener('input', e => {
+$('panel-filter').addEventListener('input', e => {
   if (e.target.id === 'mode') applyPreset(e.target.value);
   syncSidebar();
   if (e.target.id === 'font' || e.target.id === 'weight') loadFont(); else analyse();
@@ -469,6 +510,354 @@ stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.ad
 stage.addEventListener('dragleave', () => stage.classList.remove('over'));
 stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('over'); load(e.dataTransfer.files[0]); });
 window.addEventListener('paste', e => load([...e.clipboardData.files][0]));
+
+/* =====================================================================
+   Jellyfish: a small physics sim drawn as soft light into a low-res
+   "field" canvas, then turned into a grid of tiles and characters.
+   Adapted for a light background: brighter light means deeper colour
+   and darker ink, and the hottest cells become dark tiles with white text.
+   ===================================================================== */
+const Jelly = (() => {
+  const canvas = $('jelly'), jctx = canvas.getContext('2d');
+  const field = document.createElement('canvas'), fctx = field.getContext('2d', { willReadFrequently: true });
+  const SS = 2; // field samples per cell, per axis
+  const RAMP = [...".':;ot%SX8@#"];
+  const SPECKS = ['.', '.', '.', '-', "'", ',', '·'];
+  const ACCENTS = ['#db2777', '#d97706', '#16a34a', '#7c3aed'];
+  const FONT = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace';
+
+  let W = 0, H = 0, dpr = 1, cw = 10, ch = 15, cols = 0, rows = 0;
+  let jellies = [], specks = [], ripples = [], styles = new Map();
+  let time = 0, gain = 1, boostUntil = 0, raf = 0, last = 0, playing = true, active = false;
+  const pointer = { x: -1e5, y: -1e5 };
+  let cfg = {};
+
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const readCfg = () => {
+    const v = id => $('j-' + id);
+    cfg = {
+      count: +v('count').value, size: +v('size').value, speed: +v('speed').value, cell: +v('cell').value,
+      A: hex(v('colA').value), B: hex(v('colB').value), bg: v('bg').value,
+      sparkle: +v('sparkle').value, shimmer: +v('shimmer').value, snow: +v('snow').value, grid: v('grid').checked,
+    };
+    styles.clear();
+  };
+
+  // Bell pulse over one cycle: a quick squeeze, then a slow relax.
+  const squeeze = p => p < .3 ? Math.sin(p / .3 * Math.PI / 2) : .5 + .5 * Math.cos((p - .3) / .7 * Math.PI);
+
+  function makeJelly(x, y, depth) {
+    const R = clamp(Math.min(W, H * 1.25) * .075, 40, 100) * (.6 + .55 * depth) * (.9 + Math.random() * .2);
+    const j = { x, y, depth, R, vx: 0, vy: 0, angle: (Math.random() - .5) * .6, phase: Math.random(), c: 0,
+      rate: .85 + Math.random() * .3, hue: Math.random(), wander: Math.random() * 100, tents: [] };
+    for (let i = 0; i < 9; i++) j.tents.push({ u: -.92 + 1.84 * i / 8, n: 15, seg: .25, w0: .075, w1: .02, sway: .6 + Math.random() * .8, seed: Math.random() * 6.3, arm: false });
+    for (const u of [-.3, -.1, .1, .3]) j.tents.push({ u, n: 10, seg: .2, w0: .17, w1: .05, sway: 1.1 + Math.random() * .5, seed: Math.random() * 6.3, arm: true });
+    straighten(j);
+    return j;
+  }
+
+  // Where a tentacle attaches to the rim, in world space.
+  function anchor(j, t) {
+    const rx = j.R * cfg.size * (1 - .17 * j.c);
+    const lx = t.u * rx * (t.arm ? 1 : .95), ly = t.arm ? rx * .04 : 0;
+    const cs = Math.cos(j.angle), sn = Math.sin(j.angle);
+    return { x: j.x + lx * cs - ly * sn, y: j.y + lx * sn + ly * cs };
+  }
+
+  function straighten(j) {
+    const hx = Math.sin(j.angle), hy = -Math.cos(j.angle), R = j.R * cfg.size;
+    for (const t of j.tents) {
+      const a = anchor(j, t);
+      t.pts = Array.from({ length: t.n }, (_, k) => {
+        const x = a.x - hx * k * t.seg * R, y = a.y - hy * k * t.seg * R;
+        return { x, y, px: x, py: y };
+      });
+    }
+  }
+
+  function move(j, dx, dy) {
+    j.x += dx; j.y += dy;
+    for (const t of j.tents) for (const p of t.pts) { p.x += dx; p.px += dx; p.y += dy; p.py += dy; }
+  }
+
+  function seed() {
+    const slots = [[.2, .4, .8], [.78, .3, 1], [.42, .85, .9], [.64, .68, .6], [.08, .95, .6], [.92, .88, .5], [.5, .15, .7], [.3, .6, .55], [.86, .55, .75]];
+    jellies = slots.slice(0, cfg.count).map(([x, y, d], i) => Object.assign(makeJelly(x * W, y * H, d), { hue: i / Math.max(1, cfg.count - 1) }));
+    jellies.sort((a, b) => a.depth - b.depth);
+    for (let i = 0; i < 180; i++) step(1 / 60);
+  }
+
+  function seedSpecks() {
+    specks = Array.from({ length: Math.round(cols * rows / 80 * cfg.snow) }, () => ({
+      x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * 3, vy: 3 + Math.random() * 8,
+      seed: Math.random() * 6.3, g: SPECKS[(Math.random() * SPECKS.length) | 0], a: .2 + Math.random() * .35,
+    }));
+  }
+
+  function step(dt) {
+    time += dt;
+    const target = time < boostUntil ? 1.3 : 1;
+    gain += (target - gain) * Math.min(1, dt * 3);
+    const speed = cfg.speed;
+    for (const j of jellies) {
+      const R = j.R * cfg.size;
+      j.phase += dt * j.rate * speed / 2.6;
+      if (j.phase >= 1) j.phase -= 1;
+      const c = squeeze(j.phase), dc = c - j.c;
+      j.c = c;
+      const hx = Math.sin(j.angle), hy = -Math.cos(j.angle);
+      // Only the squeeze pushes; drag slows the bell while it relaxes.
+      if (dc > 0) { const push = 62 * (.5 + .5 * j.depth) * Math.sqrt(speed); j.vx += hx * dc * push; j.vy += hy * dc * push; }
+      const drag = Math.exp(-dt * 1.15);
+      j.vx = j.vx * drag + Math.sin(time * .07 + j.wander) * 1.6 * dt;
+      j.vy *= drag;
+      const pdx = j.x - pointer.x, pdy = j.y - pointer.y, pd = Math.hypot(pdx, pdy) || 1;
+      if (pd < R * 2.4) { const f = (1 - pd / (R * 2.4)) * 42 * dt; j.vx += pdx / pd * f; j.vy += pdy / pd * f; }
+      j.x += j.vx * dt; j.y += j.vy * dt;
+      j.angle += (Math.sin(time * .11 + j.wander) * .5 - j.angle) * Math.min(1, dt * .32);
+
+      // Off the top: come back in from below. Off a side: wrap around.
+      if (j.y < -R * 4.5) { move(j, W * (.08 + Math.random() * .84) - j.x, H + R * 1.5 - j.y); j.vx = j.vy = 0; straighten(j); }
+      else if (j.x < -R * 3) move(j, W + R * 6, 0);
+      else if (j.x > W + R * 3) move(j, -W - R * 6, 0);
+      else if (j.y > H + R * 6) move(j, 0, -(H + R * 9));
+
+      // Tentacles: each point keeps its momentum, trails behind the bell, sways, then is pulled back to a fixed distance from the point before it.
+      const cs = Math.cos(j.angle), sn = Math.sin(j.angle), trail = .42 + .25 * (1 - c), wave = time * 1.5 * speed;
+      for (const t of j.tents) {
+        const p = t.pts, a = anchor(j, t), seg = t.seg * R, flare = t.arm ? 0 : t.u * c * .7;
+        p[0].x = p[0].px = a.x; p[0].y = p[0].py = a.y;
+        for (let k = 1; k < p.length; k++) {
+          const q = p[k], prev = p[k - 1], f = k / p.length;
+          const vx = (q.x - q.px) * .88, vy = (q.y - q.py) * .88;
+          q.px = q.x; q.py = q.y;
+          const s = Math.sin(wave - k * .42 + t.seed) * t.sway * (.25 + f) * .55 + flare * (1 - f);
+          q.x += vx - hx * trail + cs * s;
+          q.y += vy - hy * trail + sn * s;
+          const ex = q.x - pointer.x, ey = q.y - pointer.y, ed = Math.hypot(ex, ey) || 1;
+          if (ed < 110) { const f2 = (1 - ed / 110) * 2.6; q.x += ex / ed * f2; q.y += ey / ed * f2; }
+          const dx = q.x - prev.x, dy = q.y - prev.y, d = Math.hypot(dx, dy) || 1;
+          q.x = prev.x + dx / d * seg; q.y = prev.y + dy / d * seg;
+        }
+      }
+    }
+    for (const s of specks) {
+      s.y += s.vy * dt;
+      s.x += (s.vx + Math.sin(time * .3 + s.seed) * 2) * dt;
+      if (s.y > H + ch) { s.y = -ch; s.x = Math.random() * W; }
+      if (s.x < 0) s.x += W; else if (s.x > W) s.x -= W;
+    }
+    ripples = ripples.filter(r => time - r.t0 < r.dur);
+  }
+
+  // The field stores meaning, not colour: red = amount of colour A, blue = amount of colour B, green = hot core.
+  // Shapes are added together, so overlaps glow brighter.
+  const key = (hue, k, core) => `rgb(${Math.min(255, (1 - hue) * k * 255) | 0},${Math.min(255, core * 255) | 0},${Math.min(255, hue * k * 255) | 0})`;
+
+  function drawField() {
+    fctx.setTransform(1, 0, 0, 1, 0, 0);
+    fctx.globalCompositeOperation = 'source-over';
+    fctx.fillStyle = '#000';
+    fctx.fillRect(0, 0, field.width, field.height);
+    fctx.setTransform(SS / cw, 0, 0, SS / ch, 0, 0);
+    fctx.globalCompositeOperation = 'lighter';
+    fctx.lineCap = fctx.lineJoin = 'round';
+
+    for (const r of ripples) {
+      const t = Math.max(0, (time - r.t0) / r.dur), rad = (1 - (1 - t) ** 3) * r.max, fade = 1 - t;
+      fctx.lineWidth = 6 + 12 * fade;
+      fctx.strokeStyle = key(.5, .5 * fade, .5 * fade);
+      fctx.beginPath(); fctx.ellipse(r.x, r.y, rad, rad * .56, 0, 0, Math.PI * 2); fctx.stroke();
+    }
+
+    for (const j of jellies) {
+      const k = gain * (.55 + .55 * j.depth), m = j.hue, R = j.R * cfg.size;
+      for (const t of j.tents) {
+        const p = t.pts, n = p.length;
+        for (let s = 0; s < n - 1; s += 3) {
+          const f = s / (n - 1);
+          fctx.lineWidth = (t.w0 + (t.w1 - t.w0) * f) * R;
+          fctx.strokeStyle = key(m, k * (t.arm ? .5 : .46) * (1 - f * .82), t.arm ? .1 * k : 0);
+          fctx.beginPath();
+          fctx.moveTo(p[s].x, p[s].y);
+          for (let q = s + 1; q <= Math.min(n - 1, s + 3); q++) fctx.lineTo(p[q].x, p[q].y);
+          fctx.stroke();
+        }
+      }
+      const rx = R * (1 - .17 * j.c), ry = R * .8 * (1 + .1 * j.c);
+      fctx.save();
+      fctx.translate(j.x, j.y);
+      fctx.rotate(j.angle);
+      // Bell: a dome closed by a shallow curve along the rim.
+      fctx.beginPath();
+      fctx.moveTo(-rx, 0);
+      fctx.bezierCurveTo(-rx, -ry * .58, -rx * .56, -ry, 0, -ry);
+      fctx.bezierCurveTo(rx * .56, -ry, rx, -ry * .58, rx, 0);
+      fctx.quadraticCurveTo(0, -ry * .2, -rx, 0);
+      const g = fctx.createRadialGradient(0, -ry * .38, rx * .1, 0, -ry * .3, rx * 1.05);
+      g.addColorStop(0, key(m, k * .34, .1 * k));
+      g.addColorStop(.7, key(m, k * .42, .03 * k));
+      g.addColorStop(1, key(m, k * .66, .08 * k));
+      fctx.fillStyle = g;
+      fctx.fill();
+      fctx.lineWidth = Math.max(5, R * .085);
+      fctx.strokeStyle = key(m, k * .55, .2 * k);
+      fctx.stroke();
+      // Four-leaf pattern inside the bell, like a moon jelly.
+      fctx.lineWidth = Math.max(3, R * .05);
+      fctx.strokeStyle = key(m, k * .14, .52 * k);
+      for (let i = 0; i < 4; i++) {
+        const a = Math.PI / 4 + i * Math.PI / 2;
+        fctx.beginPath();
+        fctx.ellipse(Math.cos(a) * rx * .26, -ry * .44 + Math.sin(a) * ry * .2, rx * .14, ry * .12, a, 0, Math.PI * 2);
+        fctx.stroke();
+      }
+      // Bulbs along the rim.
+      fctx.fillStyle = key(m, k * .4, .36 * k);
+      for (let i = 0; i <= 8; i++) {
+        const u = -.95 + 1.9 * i / 8;
+        fctx.beginPath(); fctx.arc(u * rx, -ry * .03 * (1 - Math.abs(u)), Math.max(2.5, R * .034), 0, Math.PI * 2); fctx.fill();
+      }
+      fctx.restore();
+    }
+  }
+
+  // Tile and ink colours for one combination of hue bucket, brightness level, and core level. Cached per palette.
+  function style(hb, lv, wb) {
+    const id = (hb * 12 + lv) * 3 + wb;
+    let s = styles.get(id);
+    if (s) return s;
+    const t = hb / 5, L = (lv + .5) / 12, w = [0, .3, .62][wb];
+    const base = [0, 1, 2].map(i => lerp(cfg.A[i], cfg.B[i], t));
+    const ink = [14, 18, 32];
+    const hot = lv >= 10 && wb > 0;
+    if (hot) {
+      const tile = base.map(v => lerp(v, ink[0], .55 - w * .25) | 0);
+      s = { tile: `rgba(${tile},.92)`, glyph: '#ffffff' };
+    } else {
+      const glyph = base.map((v, i) => lerp(v, ink[i], clamp(.1 + L * .45 + w * .2, 0, .8)) | 0);
+      s = { tile: `rgba(${base.map(v => v | 0)},${(.05 + L * .32).toFixed(3)})`, glyph: `rgba(${glyph},${(.45 + L * .55).toFixed(3)})` };
+    }
+    styles.set(id, s);
+    return s;
+  }
+
+  function render() {
+    if (!W) return;
+    drawField();
+    const d = fctx.getImageData(0, 0, field.width, field.height).data, row = field.width * 4;
+    jctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    jctx.fillStyle = cfg.bg;
+    jctx.fillRect(0, 0, W, H);
+    if (cfg.grid) {
+      jctx.fillStyle = 'rgba(20,24,40,.045)';
+      for (let x = 0; x < W; x += cw) jctx.fillRect(x, 0, 1, H);
+      for (let y = 0; y < H; y += ch) jctx.fillRect(0, y, W, 1);
+    }
+    jctx.font = `400 ${Math.round(ch * .74)}px ${FONT}`;
+    jctx.textAlign = 'center';
+    jctx.textBaseline = 'middle';
+    for (const s of specks) {
+      jctx.fillStyle = `rgba(90,104,130,${s.a})`;
+      jctx.fillText(s.g, (Math.floor(s.x / cw) + .5) * cw, (Math.floor(s.y / ch) + .5) * ch);
+    }
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const i = (y * SS * field.width + x * SS) * 4;
+      const a = (d[i] + d[i + 4] + d[i + row] + d[i + row + 4]) / 1020;
+      const w = (d[i + 1] + d[i + 5] + d[i + row + 1] + d[i + row + 5]) / 1020;
+      const b = (d[i + 2] + d[i + 6] + d[i + row + 2] + d[i + row + 6]) / 1020;
+      const L = Math.min(1, a + b + w * .55);
+      if (L < .055) continue;
+      const lv = Math.min(11, L * 12 | 0), wb = w < .12 ? 0 : w < .32 ? 1 : 2;
+      const st = style(Math.round(b / (a + b + 1e-4) * 5), lv, wb);
+      const px = x * cw, py = y * ch;
+      if (lv >= 1) { jctx.fillStyle = st.tile; jctx.fillRect(px + 1, py + 1, cw - 2, ch - 2); }
+      const tk = tick(x, y, time, cfg.shimmer), h = hash(x, y, tk);
+      jctx.fillStyle = lv >= 4 && lv < 10 && h > 1 - cfg.sparkle ? ACCENTS[(h * 1e4 | 0) & 3] : st.glyph;
+      jctx.fillText(RAMP[h < .55 ? lv : Math.max(0, lv - 1)], px + cw / 2, py + ch / 2 + .5);
+    }
+  }
+
+  function loop(now) {
+    raf = requestAnimationFrame(loop);
+    if (!last) { last = now; return; }
+    const dt = Math.min(.1, (now - last) / 1000);
+    if (dt < 1 / 30) return;
+    last = now;
+    const n = Math.max(1, Math.min(6, Math.round(dt * 60)));
+    for (let i = 0; i < n; i++) step(dt / n);
+    render();
+  }
+
+  function sync() {
+    const run = active && playing && W > 0;
+    if (run && !raf) { last = 0; raf = requestAnimationFrame(loop); }
+    else if (!run && raf) { cancelAnimationFrame(raf); raf = 0; }
+  }
+
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    const nW = Math.round(r.width), nH = Math.round(r.height);
+    if (!nW || !nH || (nW === W && nH === H && cw === cfg.cell)) return;
+    const first = !W;
+    W = nW; H = nH;
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    cw = cfg.cell; ch = Math.round(cw * 1.5);
+    cols = Math.ceil(W / cw); rows = Math.ceil(H / ch);
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    field.width = cols * SS; field.height = rows * SS;
+    if (first || jellies.length !== cfg.count) seed();
+    seedSpecks();
+    render();
+    sync();
+  }
+
+  readCfg();
+  new ResizeObserver(resize).observe(canvas);
+  $('panel-jelly').addEventListener('input', e => {
+    const label = $('o-' + e.target.id);
+    if (label) label.textContent = e.target.value;
+    const oldCount = cfg.count;
+    readCfg();
+    if (e.target.id === 'j-cell') resize();
+    if (cfg.count !== oldCount) seed();
+    if (e.target.id === 'j-snow') seedSpecks();
+    if (e.target.id === 'j-size') for (const j of jellies) straighten(j);
+    render();
+  });
+  document.querySelectorAll('#panel-jelly output').forEach(o => o.textContent = $(o.id.slice(2)).value);
+  canvas.addEventListener('pointermove', e => { const r = canvas.getBoundingClientRect(); pointer.x = e.clientX - r.left; pointer.y = e.clientY - r.top; });
+  canvas.addEventListener('pointerleave', () => { pointer.x = pointer.y = -1e5; });
+  canvas.addEventListener('click', e => {
+    const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    boostUntil = time + 1.8;
+    ripples.push({ x, y, t0: time, dur: 1.7, max: Math.max(W, H) * .6 }, { x, y, t0: time + .26, dur: 1.7, max: Math.max(W, H) * .48 });
+    for (const j of jellies) j.phase = Math.min(j.phase, .05);
+  });
+  $('j-play').onclick = () => { playing = !playing; $('j-play').textContent = playing ? 'Pause' : 'Play'; sync(); };
+  $('j-save').onclick = () => {
+    const a = document.createElement('a');
+    a.download = 'ascii-jellyfish.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { playing = false; $('j-play').textContent = 'Play'; }
+  document.fonts.load(`400 12px "JetBrains Mono"`).then(render, () => {});
+
+  return { show(on) { active = on; resize(); sync(); } };
+})();
+
+function showTab(name) {
+  const jelly = name === 'jelly';
+  $('tab-filter').setAttribute('aria-selected', !jelly);
+  $('tab-jelly').setAttribute('aria-selected', jelly);
+  $('panel-filter').hidden = jelly;
+  $('panel-jelly').hidden = !jelly;
+  stage.dataset.tab = name;
+  Jelly.show(jelly);
+}
+$('tab-filter').onclick = () => showTab('filter');
+$('tab-jelly').onclick = () => showTab('jelly');
 </script>
 </body>
 </html>
